@@ -1,0 +1,188 @@
+---
+title: "Sharing_Trees_Animove"
+output: html_document
+date: "2022-09-19"
+editor_options: 
+  chunk_output_type: console
+---
+
+```{r cars}
+rm(list=ls()) # clean history 
+library(tidyverse)
+library(dplyr)
+library(data.table)
+source("src/distance.points.R")
+source("src/PsuedoFunction.R")
+options(dplyr.summarise.inform = FALSE)
+```
+
+# Get stops data of bats tracked at least three nights
+```{r pressure, echo=FALSE}
+dt_stops<-read_csv("Data/data_information_trees.csv")
+dt_stops$TAG<-as.character(dt_stops$TAG)
+dt_stops$DateTimeStart<-as.POSIXct((dt_stops$start)/1000, tz="UTC", origin="1970-01-01")
+dt_stops$DateTimeEnd<-as.POSIXct((dt_stops$end)/1000, tz="UTC", origin="1970-01-01")
+# WeekGlobal<-lubridate::week(dt_stops$DateTimeStart)
+# YearGlobal<-lubridate::year(dt_stops$DateTimeStart)
+# dt_stops$WeekGlobal<-paste0(WeekGlobal,YearGlobal)
+# dt_stops<-dt_stops %>% group_by(WeekGlobal) %>% mutate("DateWeek"=min(date_global))
+```
+
+# Add a clumn that identifies a visit to a "new tree" that wasn't visited by the bat before.
+I choose the discovery of PATCH (cluster of adjacent trees) and not a tree, because it makes sure the new visit is really not a random stumbling upon adjacent trees.
+
+```{r}
+dt_stops<-add_new_trees(dt_stops,cluster="patch")
+```
+
+# Remove the stops in caves from the analysis (caves are identified as dummy="yes") 
+```{r}
+dt_stops<-dt_stops[dt_stops$dummy=="no",]
+
+```
+
+# Get the individul bats' measurments (taken upon capture)
+```{r}
+ind<-read_csv("data/ind_info.csv")
+ind$TAG<-as.character(ind$TAG)
+ind<-ind[!duplicated(ind$TAG),]
+```
+
+
+# Find pairs of bats that were tracked together simoultaniouslly, with help from the "data.table::foverlaps" function. 
+```{r}
+tag_dates<-dt_stops %>% dplyr::group_by(TAG) %>% dplyr::summarise("start_date"=min(date_global), "end_date"=max(date_global))
+
+dt1<-data.table(tag_dates)
+dt2<-data.table(tag_dates, key=c("start_date","end_date"))
+
+overlaps_tags<-foverlaps(dt1, dt2, type="any", nomatch=0L)
+colnames(overlaps_tags)<-c("TAGA","start_dateA","end_dateA","TAGB","start_dateB","end_staeB")
+
+# remove duplicates:
+overlaps_tags<-overlaps_tags[overlaps_tags$TAGA!=overlaps_tags$TAGB,]
+
+overlaps_tags<-as.data.frame(overlaps_tags)
+```
+
+# Find psuedo following events - summarize outcomes of tree-encounters in a table per night and save it externally. 
+Tables shall be saved in a folder named "tree_encounters".
+
+This is the heaviest part of the code, and should take ~ 15 mins to run. If you wish to skip it, the results are already uploaded to the source-code folder "data\tree_encounters"
+```{r}
+
+for (nt in c(1:6)){
+t0<-Sys.time()
+psuedo_follow_df_past<-rbindlist(lapply(1:nrow(overlaps_tags), FindFollowPast, overlaps_tags, dt_stops,n_nights=nt,tree_type="pred"))
+psuedo_follow_df_past<-psuedo_follow_df_past[psuedo_follow_df_past$n_future_trees_A>0,]
+colnames(psuedo_follow_df_past)<-c("TAGA","TAGB","MeetingTree","MeetingDate","prop_A_vis_B","prop_A_first","n_shared_trees","n_shared_new_trees","A_future_trees","min_nights","A_future_species")
+file_name<-paste0("data/tree_encounters/psuedo_following",nt,"Night.csv")
+write.csv(psuedo_follow_df_past,file_name)
+print(paste0("Night ",nt," done after ", round(Sys.time()-t0,1), "mins"))
+}
+
+```
+
+
+# Get the individul bats' measurments (taken upon capture)
+```{r}
+library(stringi)   
+
+# Add individual data:
+ind<-ind[!duplicated(ind$TAG),]
+ind<-ind[,c("TAG","cave_origin","sex","age","FA")]
+# Remove pups (for the cases where they are attached to their mothers):
+ind<-ind[ind$age!="pup",]
+indTAG1<-ind ; indTAG2<-ind
+colnames(indTAG1)<-c("TAGA","cave_originA","sexA","ageA","FA_A")
+colnames(indTAG2)<-c("TAGB","cave_originB","sexB","ageB","FA_B")
+```
+
+
+```{r}
+
+path<-"data/tree_encounters/"
+night_files<-list.files(path,".csv")
+psuedo_nights_df<-get_psuedo_data(night_files,path,type="obs")
+
+```
+
+
+Logistic tests - did bats that ever meet, also shared trees later (separate test per night after meeting)?
+```{r}
+
+fill<-rep(NA,length(unique(psuedo_nights_df$night_period)))
+model_results<-data.frame("period"=fill,"Night"=fill, "est"=fill, "pv"=fill)
+list<-unique(psuedo_nights_df$nights_examined)
+
+for (m in 1:length(list)){
+
+psuedo_pairs_ind<-psuedo_nights_df[psuedo_nights_df$nights_examined==list[m],]
+# model:
+psuedo_pairs_ind$shared_tree_name<-ifelse(psuedo_pairs_ind$shared_tree=="yes","Met","Did not meet")
+psuedo_pairs_ind<-psuedo_pairs_ind[!is.na(psuedo_pairs_ind$shared_tree_name),]
+
+round(table(psuedo_pairs_ind$shared_tree, psuedo_pairs_ind$visit_focal, useNA = "always")/nrow(psuedo_pairs_ind),digits=2)
+
+n_met<-nrow(psuedo_pairs_ind[psuedo_pairs_ind$shared_tree=="yes",])
+n_didnt<-nrow(psuedo_pairs_ind[psuedo_pairs_ind$shared_tree=="no",])
+n<-min(n_met,n_didnt)
+psuedo_pairs_ind_equal <- psuedo_pairs_ind %>% group_by(shared_tree) %>% slice_sample(n=n)
+
+model <- glm(visit_focal ~ shared_tree_name,family=binomial(link='logit'),data=psuedo_pairs_ind_equal)
+
+Night<-list[m]
+
+pv<-coef(summary(model))[,'Pr(>|z|)'][2]
+est<-coef(summary(model))[,'Estimate'][2]
+model_results[m,]<-c(NA,Night,est,pv)
+}
+
+model_results$Night<-as.numeric(model_results$Night)
+```
+
+Plot results - probabilities to visit each-others' trees after the encounter (over 6 nights after):
+
+# Prepare data table for plot:
+```{r}
+prop_df_nights<-NULL
+for (n in unique(psuedo_nights_df$nights_examined)){
+psuedo_pairs_ind<-psuedo_nights_df[psuedo_nights_df$nights_examined==n,]
+
+table(psuedo_pairs_ind$shared_tree, psuedo_pairs_ind$visit_focal)
+
+prop_met_yes<-nrow(psuedo_pairs_ind[psuedo_pairs_ind$visit_focal ==1 &psuedo_pairs_ind$shared_tree=="yes",])/nrow(psuedo_pairs_ind[psuedo_pairs_ind$shared_tree=="yes",])
+
+prop_met_no<-nrow(psuedo_pairs_ind[psuedo_pairs_ind$visit_focal ==1 &psuedo_pairs_ind$shared_tree=="no",])/nrow(psuedo_pairs_ind[psuedo_pairs_ind$shared_tree=="no",])
+
+prop_df<-data.frame("Met"=c("Met","Did not meet"), "prop"=c(prop_met_yes,prop_met_no))
+
+prop_df$night<-n
+prop_df_nights<-rbind(prop_df_nights,prop_df)
+}
+
+
+```
+
+# Base-R plots:
+```{r}
+met<-prop_df_nights[prop_df_nights$Met=="Met",]
+didnot<-prop_df_nights[prop_df_nights$Met=="Did not meet",]
+
+met<-met[order(met$night),]
+didnot<-didnot[order(didnot$night),]
+
+par(mfrow=c(1,1))
+#plot(y=100*met$prop,x=met$night, type = "b", col = "red", ylim=c(0, 70),xlab=c("Nights"), ylab=c("prob to visit other bats' trees (%)"))
+plot(y=100*met$prop,x=met$night, type = "b", col = "red",xlab=c("Nights"),ylim=c(0, 50),xlim=c(1, 6), ylab=c("Liklihood to visit other bats' trees (%)"))
+lines(100*didnot$prop,x=met$night, type = "b", col = "blue")
+#lines(prop_df_nights_sum$freq_diff, type="l", col = "grey", lty = 2,lwd = 2)
+
+text(x=c(2,3,4),y=40,"*",pos=3,cex=1)
+
+
+legend("topleft", legend = c("bats met", "did not meet"),
+      col = c("red", "blue"), lty = c(1,1,2), cex = 1)
+```
+
+ 
