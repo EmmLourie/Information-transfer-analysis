@@ -1,0 +1,217 @@
+---
+title: "Ficus_Sycamorus_Experiment"
+author: "Emmanuel Lourie"
+date: "2024-01-25"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+rm(list=ls()) # clean history 
+library(tidyverse)
+```
+
+```{r}
+all_stops<-read_csv("data/all_tree_visits.csv") # Table of all tree visits ("stops") 
+syc_stops<-read_csv("data/visits_to_f.sycamorus.csv") # Tree visits within 100 m buffer around the target F.sycamorus tree (done in ArcGIS)
+all_stops<-all_stops[all_stops$dummy!="cave",] # Select only stops on trees, without cave-roosts (dummy=cave)
+
+
+# sure_syc<-syc_stops[syc_stops$tree_sp=="Ficus sycomorus",]
+# hist(lubridate::hour(sure_syc$time_start),breaks=100)
+# hist(sure_syc$duration)
+# sure_syc<-sure_syc[sure_syc$duration>1,]
+# hist(lubridate::hour(sure_syc$time_start),breaks=100)
+# syc_stops_long<-syc_stops[syc_stops$duration>4,]
+# table(lubridate::hour(syc_stops_long$time_start))
+# table(lubridate::hour(syc_stops_long$time_end))
+
+# looks like from 19 to 22 UTC
+# For the summer this is 22:00- 01:00
+# based on end-times, normally ends between 19 to 22 UTC
+# So most chances to see them is 22:oo-00:00
+```
+
+```{r}
+
+syc_tag_nights<-unique(syc_stops$TAG_Night)
+stops_no_syc<-all_stops[!all_stops$TAG_Night %in% syc_tag_nights,]
+stops_no_syc<-stops_no_syc[!duplicated(stops_no_syc$TAG_Night),]
+stops_no_syc$syc<-rep("no",nrow(stops_no_syc))
+syc_stops_unq<-syc_stops[!duplicated(syc_stops$TAG_Night),]
+syc_stops_unq$syc<-rep("yes",nrow(syc_stops_unq))
+cols<-colnames(syc_stops_unq)
+stops_no_syc<-stops_no_syc[,cols]
+
+syc_dt<-rbind(syc_stops_unq, stops_no_syc)
+table(syc_dt$syc)
+
+# Dates without fruits on F. sycomorus
+phen_table <- read.table(text = "  Start        End  stage
+1	2019-11-11	2020-01-14	no_fruits
+2	2020-01-15	2020-06-01	NA
+3	2020-06-02	2020-06-22	no_fruits
+4	2020-06-23	2020-06-25	manipulation
+5	2020-06-26	2020-07-31	no_fruits
+6	2020-08-01	2020-08-30	fruits
+7	2020-09-01	2020-10-17	no_fruits
+8	2020-10-18	2020-11-01	fruits
+9	2020-11-02	2021-11-30	NA
+10	2020-12-01	2021-03-30	no_fruits
+11	2019-12-15	2020-02-15	no_fruits
+12	2018-12-15	2019-02-15	no_fruits", # Add winters artificially
+header = TRUE,
+stringsAsFactors = FALSE)
+
+# Periods with fruits (ripe or not)
+phen_table <- read.table(text = "  Start        End  stage
+1	2019-11-11	2020-01-14	no_fruits
+2	2020-01-15	2020-06-01	NA
+3	2020-06-02	2020-06-12	fruits
+4	2020-06-13	2020-06-22	no_fruits
+5	2020-06-23	2020-06-25	manipulation
+6	2020-06-26	2020-06-30	no_fruits
+7	2020-07-01	2020-11-01	fruits
+8	2020-11-02	2020-11-30	NA
+9	2020-12-01	2021-03-30	no_fruits
+11	2019-12-15	2020-02-15	no_fruits
+12	2018-12-15	2019-02-15	no_fruits", # Add winters artificially
+header = TRUE,
+stringsAsFactors = FALSE)
+
+phen_table$Start<-as.Date(phen_table$Start, format="%Y-%m-%d")
+phen_table$End<-as.Date(phen_table$End, format="%Y-%m-%d")
+
+phen_start<-min(phen_table$Start)
+phen_end<-max(phen_table$End)
+
+
+```
+
+
+# During the manipulation, some bats racted immediatly, and some upt to 3 nights after. So it makes sense to ask if there was a visit during 3 nights (and compare to normal periods)
+3-day intervals (fitting to the time the manipulation created an effect)
+```{r}
+
+syc_dt<-syc_dt[!is.na(syc_dt$date_global),]
+start_date<-min(syc_dt$date_global); end_date<-max(syc_dt$date_global)
+
+syc_dt_all<-syc_dt
+man_start<-na.omit(phen_table$Start[phen_table$stage=="manipulation"])
+man_end<-na.omit(phen_table$End[phen_table$stage=="manipulation"])
+before_man<-seq(man_start-1,start_date, -3)
+after_man<-seq(man_end+1, end_date,3)
+man<-seq(man_start,man_end,3)
+triple_dates<-c(before_man,man,after_man)
+triple_inx<-seq(1, length(triple_dates),1)
+triple_df<-data.frame("start_date"=triple_dates, "triple_inx"=triple_inx)
+
+# add penology
+syc_dt_all$fruits<-NA
+for (r in 1:nrow(phen_table)){
+rows<-which(syc_dt_all$date_global>=phen_table$Start[r] & syc_dt_all$date_global<=phen_table$End[r])
+syc_dt_all$fruits[rows]<-phen_table$stage[r]
+}
+table(syc_dt_all$fruits, useNA = "ifany")
+
+triple_df<-triple_df[order(triple_df$start_date),]
+tdate_l<-unique(triple_df$start_date)
+syc_dt_all$triple_date<-rep(NA,nrow(syc_dt_all))
+
+for (t in 1:length(tdate_l)){
+triple_loc<-which(syc_dt_all$date_global>= tdate_l[t] & syc_dt_all$date_global< tdate_l[t+1])
+if(length(triple_loc)>0){
+syc_dt_all$triple_date[triple_loc]<-triple_df$triple_inx[triple_df$start_date==tdate_l[t]]
+ }
+}
+
+syc_dt_all$TAG_triple<-paste0(syc_dt_all$TAG,"_", syc_dt_all$triple_date)
+syc_dt_all<-syc_dt_all %>% group_by(triple_date) %>% mutate("tdate"=min(as.Date(date_global)))
+
+```
+
+
+```{r}
+syc_dt_sum_t<-syc_dt_all %>% group_by(fruits,TAG, tdate) %>% summarise("n_syc"=length(syc[syc=="yes"]))
+syc_dt_sum_t$syc_vis<-ifelse(syc_dt_sum_t$n_syc>0,1,0)
+
+syc_sum_triple<-syc_dt_sum_t %>% group_by(fruits,tdate) %>% summarise("n_syc_vis"=sum(syc_vis), "n_tags"=length(unique(TAG)))
+syc_sum_triple$syc_prop<-syc_sum_triple$n_syc_vis/syc_sum_triple$n_tags
+```
+
+Box plots - I don't have enough (1) phenology when the bats are tracked, and in particular (2) tags tracked when there are fruits in Neot. So I will compare the total probability (no matter the season) to the probability when there are no fruits (subset) to the probability during the manipulation.
+
+```{r}
+syc_sum_triple1<-syc_sum_triple
+syc_sum_triple1$fruits<-"All"
+syc_sum_triple_nof<-syc_sum_triple[syc_sum_triple$fruits=="no_fruits",]
+syc_sum_triple_man<-syc_sum_triple[syc_sum_triple$fruits=="manipulation",]
+syc_sum_tnight_all<-rbind(syc_sum_triple1, syc_sum_triple_nof, syc_sum_triple_man)
+syc_sum_tnight_all<-syc_sum_tnight_all[!is.na(syc_sum_tnight_all$fruits),]
+syc_sum_tnight_all$syc_prop<-round(syc_sum_tnight_all$syc_prop,digits=2)
+
+syc_sum_tnight_all2<-syc_sum_tnight_all[syc_sum_tnight_all$n_tags>2,]
+
+
+syc_sum_tnight_all3<-syc_sum_tnight_all2[syc_sum_tnight_all2$fruits!="manipulation",]
+man_val<-na.omit(syc_sum_triple_man$syc_prop)
+
+ggplot(data=syc_sum_tnight_all3, aes(x=syc_prop, fill=fruits))+geom_histogram(position="dodge")+theme_bw()+
+  geom_vline(xintercept = man_val,linetype="longdash")+xlab("Probability to visit Sycamore fig in three nights") + ylab("Frequency")+   
+    scale_fill_discrete(name = "Phenological stage", labels = c("All", "No fruits")) + theme(text = element_text(size = 20)) 
+
+freq_table<-table(syc_sum_tnight_all3$fruits, syc_sum_tnight_all3$syc_prop)
+prop_table<-as.data.frame(prop.table(freq_table))
+colnames(prop_table)<-c("fruits","syc_prop" ,"proportion")
+prop_table$proportion<-round(prop_table$proportion,digits=2)
+
+prop_table_all<-prop_table[prop_table$fruits=="All",]
+prop_table_all$syc_prop<-as.double(as.character(prop_table_all$syc_prop))
+
+ggplot(data=prop_table_all, aes(y=proportion,x=syc_prop))+geom_col(position="dodge")+theme_bw()+xlab("Probability to visit Sycamore fig in three nights") + ylab("Proportion") + theme(text = element_text(size = 20))+
+  geom_vline(xintercept = 0.25,linetype="longdash")+ 
+ scale_x_continuous(breaks=seq(0,0.75,0.15)) 
+
+ggplot(data=prop_table, aes(x=syc_prop,y=proportion, fill=fruits))+geom_col(position="dodge")+theme_bw()+
+  geom_vline(xintercept = 0.37,linetype="longdash")+xlab("Probability to visit Sycamore fig in three nights") + ylab("Proportion")+   
+    scale_fill_discrete(name = "Phenological stage", labels = c("All", "No fruits")) + theme(text = element_text(size = 20))
+
+ggplot(data=syc_sum_tnight_all3, aes(x=fruits, y=syc_prop))+geom_boxplot(outlier.shape = NA)+geom_point(color="purple", position="jitter")+theme_bw()+
+  geom_hline(yintercept = man_val,linetype="longdash")+ylab("Probability to visit Sycamore fig in three nights") + xlab("")+ scale_x_discrete(labels=c("All" = "All periods", "no_fruits" = "No fruits"))+ theme(text = element_text(size = 20)) 
+
+ex<-syc_dt_sum_t[syc_dt_sum_t$tdate=="2019-12-22",]
+
+```
+
+Chi square test
+```{r}
+table(syc_sum_tnight_all$fruits)
+syc_sum_test<-syc_sum_tnight_all %>% group_by(fruits) %>% summarise("n_vis" = sum(n_syc_vis),"n_tags"=sum(n_tags))
+# Fix based on my previouse counts:
+syc_sum_test$n_vis[syc_sum_test$fruits=="manipulation"]<-14#13
+syc_sum_test$n_tags[syc_sum_test$fruits=="manipulation"]<-71#49
+#syc_sum_test<-syc_sum_test[syc_sum_test$fruits!="All",]
+no_fruits_prop<-syc_sum_test$n_vis[syc_sum_test$fruits=="no_fruits"]/syc_sum_test$n_tags[syc_sum_test$fruits=="no_fruits"]
+
+manipulation_prop<-syc_sum_test$n_vis[syc_sum_test$fruits=="manipulation"]/syc_sum_test$n_tags[syc_sum_test$fruits=="manipulation"]
+
+all_prop<-syc_sum_test$n_vis[syc_sum_test$fruits=="All"]/syc_sum_test$n_tags[syc_sum_test$fruits=="All"]
+
+manipulation_prop/all_prop
+
+syc_sum_test$did_not<-syc_sum_test$n_tags-syc_sum_test$n_vis
+syc_sum_test_chi<-syc_sum_test[,-3]
+syc_sum_test_chi<-as.matrix(syc_sum_test_chi[,-1])
+print(chisq.test(syc_sum_test_chi)) # among all groups
+
+# against non-fruits only
+syc_nof_test_chi<-as.matrix(syc_sum_test_chi[-1,])
+print(chisq.test(syc_nof_test_chi))
+print(fisher.test(syc_nof_test_chi, alternative = "greater")) # checking if there are greater probabilities for manipulation vs. no fruits (odds ratio > 1) 
+
+# against all fruits 
+syc_all_test_chi<-as.matrix(syc_sum_test_chi[-3,])
+print(chisq.test(syc_all_test_chi))
+
+
+```
+ 
