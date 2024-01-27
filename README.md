@@ -34,7 +34,10 @@ Script: Ficus_Sycamorus_Experiment.Rmd**
 Script: Sharing_Information_Trees.Rmd
 
 •	This code begins with reading the tree-visit data of all bats - data_information_trees_main.csv, and creates a “pseudo following” tables that describe whether bats that met on trees at the same time (i.e., encountered), proceeded to visit each other’s’ trees after they met (results per night after the meeting are saved while running the code in the tree_encounters folder). 
+
 •	Individual bats’ measurements were added (nd_info.csv) to remove pups that may be attached to their mothers. 
+
 •	Three helper functions are included within the src/PsuedoFunction.R code, which adds a column of instances when a bat visits a new patch of trees (so to ask if a new tree visit was of an unknown tree), the main tree-encounter analysis that creates a table with pairs of bats and documents whether they visited each other’s trees or not, and in what order. And lastly, a function that reads the results of the tree0encounter analysis of each night (from the night they met up until 6 nights after), to summarize it into a table for running the model comparing the probabilities to visit each other’s trees for dyads that met, and dyads that did not. 
+
 •	Note: Here, the tree-stops dataset is smaller than in the previous analysis, since we wanted (1) to make sure all the bats included in the analysis had ample time to learn from each other, so we only included bats that were tracked > 3 nights. 
 
