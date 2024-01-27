@@ -22,8 +22,11 @@ The folder contains all source-data (bats tree visits, and individual measuremen
 Script: Ficus_Sycamorus_Experiment.Rmd**
 
 •	This code begins with reading the tree-visit data of all bats - all_tree_visits_main.csv and the table containing the results of the field manipulation for the information transfer in cave-roost (Field_Manipulation_Table.csv) where we counted the number of bats that visited, and that did not visit, the F. sycomorus tree after the manipulation.
+
 •	The tree visitation table, termed “stops” in the code (as in tree stops, and not commute) are derived from an extensive procedure of filtering, segmenting, and appending the relevant tree attributes from raw ATLAS tracks of bats. Information about this procedure can be found at Gupte, P. R., Beardsworth, C. E., Spiegel, O., Lourie, E., Toledo, S., Nathan, R., & Bijleveld, A. I. (2022). A guide to pre‐processing high‐throughput animal tracking data. Journal of Animal Ecology, 91(2), 287-307. See additional file that describes this data under data/
+
 •	The code compares the probability of bats to visit one of the two F. sycomorus trees in the landscape, derived from the stops data, during times were the trees provided no fruits. It then compares these probabilities to the ones of the field manipulation, using a chi-square test for comparing counts.
+
 •	Note: there are differences between the tree-visit data that are used for the two analyses. Here, the motivation was to use the maximal number of “stops,” including short ones (<1 min) and the ones of bats that were tracked briefly (< 3 nights). As such, we aimed to ensure the probabilities to visit F. sycomorus during routine movements are maximized, making the comparison against the manipulation highly conservative since in reality there were probably less visits to the target trees than counted here.  
 
 **(1) Analysis of Information transfer on trees** 
