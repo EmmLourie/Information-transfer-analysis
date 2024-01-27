@@ -18,7 +18,9 @@ options(dplyr.summarise.inform = FALSE)
 
 **Get stops (tree-viisits) data of bats tracked at least three nights**
 ```{r pressure, echo=FALSE}
-dt_stops<-read_csv("Data/data_information_trees.csv")
+dt_stops<-read_csv("Data/data_information_trees_main.csv")
+
+
 dt_stops$TAG<-as.character(dt_stops$TAG)
 dt_stops$DateTimeStart<-as.POSIXct((dt_stops$start)/1000, tz="UTC", origin="1970-01-01")
 dt_stops$DateTimeEnd<-as.POSIXct((dt_stops$end)/1000, tz="UTC", origin="1970-01-01")
@@ -66,7 +68,7 @@ Tables shall be saved in a folder named "tree_encounters"**
 
 Note: this is the heaviest part of the code, and should take ~ 15 mins to run. If you wish to skip it, the results are already uploaded to the source-code folder "data\tree_encounters"
 ```{r}
-for (nt in c(1:6)){ # repeating the interaction anlysis for 1-6 nights after the bats met. 
+for (nt in c(1:6)){ # repeating the interaction analysis for 1-6 nights after the bats met. 
 t0<-Sys.time()
 psuedo_follow_df_past<-rbindlist(lapply(1:nrow(overlaps_tags), FindFollowPast, overlaps_tags, dt_stops,n_nights=nt,tree_type="pred"))
 psuedo_follow_df_past<-psuedo_follow_df_past[psuedo_follow_df_past$n_future_trees_A>0,]
