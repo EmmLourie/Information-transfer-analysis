@@ -16,32 +16,28 @@ source("src/PsuedoFunction.R")
 options(dplyr.summarise.inform = FALSE)
 ```
 
-# Get stops data of bats tracked at least three nights
+**Get stops (tree-viisits) data of bats tracked at least three nights**
 ```{r pressure, echo=FALSE}
 dt_stops<-read_csv("Data/data_information_trees.csv")
 dt_stops$TAG<-as.character(dt_stops$TAG)
 dt_stops$DateTimeStart<-as.POSIXct((dt_stops$start)/1000, tz="UTC", origin="1970-01-01")
 dt_stops$DateTimeEnd<-as.POSIXct((dt_stops$end)/1000, tz="UTC", origin="1970-01-01")
-# WeekGlobal<-lubridate::week(dt_stops$DateTimeStart)
-# YearGlobal<-lubridate::year(dt_stops$DateTimeStart)
-# dt_stops$WeekGlobal<-paste0(WeekGlobal,YearGlobal)
-# dt_stops<-dt_stops %>% group_by(WeekGlobal) %>% mutate("DateWeek"=min(date_global))
 ```
 
-# Add a clumn that identifies a visit to a "new tree" that wasn't visited by the bat before.
-I choose the discovery of PATCH (cluster of adjacent trees) and not a tree, because it makes sure the new visit is really not a random stumbling upon adjacent trees.
+**Add a clumn that identifies a visit to a "new tree" that wasn't visited by the bat before.**
+**I choose the discovery of PATCH (cluster of adjacent trees) and not a tree, because it makes sure the new visit is really not a random stumbling upon adjacent trees.**
 
 ```{r}
 dt_stops<-add_new_trees(dt_stops,cluster="patch")
 ```
 
-# Remove the stops in caves from the analysis (caves are identified as dummy="yes") 
+**Remove the stops in caves from the analysis (caves are identified as dummy="yes")** 
 ```{r}
 dt_stops<-dt_stops[dt_stops$dummy=="no",]
 
 ```
 
-# Get the individul bats' measurments (taken upon capture)
+**Get the individul bats' measurments (taken upon capture)**
 ```{r}
 ind<-read_csv("data/ind_info.csv")
 ind$TAG<-as.character(ind$TAG)
@@ -49,7 +45,7 @@ ind<-ind[!duplicated(ind$TAG),]
 ```
 
 
-# Find pairs of bats that were tracked together simoultaniouslly, with help from the "data.table::foverlaps" function. 
+**Find pairs of bats that were tracked together simoultaniouslly, with help from the "data.table::foverlaps" function** 
 ```{r}
 tag_dates<-dt_stops %>% dplyr::group_by(TAG) %>% dplyr::summarise("start_date"=min(date_global), "end_date"=max(date_global))
 
@@ -65,13 +61,12 @@ overlaps_tags<-overlaps_tags[overlaps_tags$TAGA!=overlaps_tags$TAGB,]
 overlaps_tags<-as.data.frame(overlaps_tags)
 ```
 
-# Find psuedo following events - summarize outcomes of tree-encounters in a table per night and save it externally. 
-Tables shall be saved in a folder named "tree_encounters".
+**Find psuedo following events - summarize outcomes of tree-encounters in a table per night and save it externally. 
+Tables shall be saved in a folder named "tree_encounters"**
 
-This is the heaviest part of the code, and should take ~ 15 mins to run. If you wish to skip it, the results are already uploaded to the source-code folder "data\tree_encounters"
+Note: this is the heaviest part of the code, and should take ~ 15 mins to run. If you wish to skip it, the results are already uploaded to the source-code folder "data\tree_encounters"
 ```{r}
-
-for (nt in c(1:6)){
+for (nt in c(1:6)){ # repeating the interaction anlysis for 1-6 nights after the bats met. 
 t0<-Sys.time()
 psuedo_follow_df_past<-rbindlist(lapply(1:nrow(overlaps_tags), FindFollowPast, overlaps_tags, dt_stops,n_nights=nt,tree_type="pred"))
 psuedo_follow_df_past<-psuedo_follow_df_past[psuedo_follow_df_past$n_future_trees_A>0,]
@@ -84,7 +79,7 @@ print(paste0("Night ",nt," done after ", round(Sys.time()-t0,1), "mins"))
 ```
 
 
-# Get the individul bats' measurments (taken upon capture)
+**Get the individul bats' measurments (taken upon capture)**
 ```{r}
 library(stringi)   
 
@@ -98,7 +93,7 @@ colnames(indTAG1)<-c("TAGA","cave_originA","sexA","ageA","FA_A")
 colnames(indTAG2)<-c("TAGB","cave_originB","sexB","ageB","FA_B")
 ```
 
-
+**Retrieve tree-encounter data (created two chunks above)**
 ```{r}
 
 path<-"data/tree_encounters/"
@@ -108,7 +103,7 @@ psuedo_nights_df<-get_psuedo_data(night_files,path,type="obs")
 ```
 
 
-Logistic tests - did bats that ever meet, also shared trees later (separate test per night after meeting)?
+**Logistic tests - did bats that ever meet, also shared trees later (separate test per night after meeting)?**
 ```{r}
 
 fill<-rep(NA,length(unique(psuedo_nights_df$night_period)))
@@ -141,9 +136,9 @@ model_results[m,]<-c(NA,Night,est,pv)
 model_results$Night<-as.numeric(model_results$Night)
 ```
 
-Plot results - probabilities to visit each-others' trees after the encounter (over 6 nights after):
+**Plot results - probabilities to visit each-others' trees after the encounter (over 6 nights after)**
 
-# Prepare data table for plot:
+Prepare data table for plot:
 ```{r}
 prop_df_nights<-NULL
 for (n in unique(psuedo_nights_df$nights_examined)){
@@ -164,7 +159,7 @@ prop_df_nights<-rbind(prop_df_nights,prop_df)
 
 ```
 
-# Base-R plots:
+Base-R plots:
 ```{r}
 met<-prop_df_nights[prop_df_nights$Met=="Met",]
 didnot<-prop_df_nights[prop_df_nights$Met=="Did not meet",]
