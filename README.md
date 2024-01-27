@@ -2,7 +2,7 @@ Source Codes and Data for:
 **SPATIAL MEMORY OBVIATES FOLLOWING BEHAVIOR IN AN INFORMATION CENTER OF WILD FRUIT BATS
 Overvie**
 
-Thiese are the source codes for the manuscript which tests for the information center hypotheses in roosts and around foraging trees for wild Egyptian fruit bats (Rousettus aegyptiacus) in the Hula Valley, Israel. 
+These are the source codes for the manuscript which tests for the information center hypotheses in roosts and around foraging trees for wild Egyptian fruit bats (Rousettus aegyptiacus) in the Hula Valley, Israel. 
 The code for all analyses can be found under the main branch and described below for each of the two analyses. There are two codes, one for each analysis described hereunder. Both are .Rmd files. 
 
 renv/
