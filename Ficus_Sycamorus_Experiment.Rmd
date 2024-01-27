@@ -7,7 +7,7 @@ keep_md: true
 chunk_output_type: console
 ---
 
-**clean history and load libraries**
+**Clean history and load libraries**
 ```{r setup, include=FALSE}
 rm(list=ls()) # clean history 
 library(tidyverse)
