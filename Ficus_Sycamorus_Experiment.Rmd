@@ -1,19 +1,22 @@
 ---
-title: "Ficus_Sycamorus_Experiment"
-author: "Emmanuel Lourie"
-date: "2024-01-25"
+title: "Ficus Sycamorus Experiment"
+author: "Emmanuel Lourie" 
 output: html_document
+date: "2023-09-19"
+keep_md: true
+chunk_output_type: console
 ---
 
+**clean history and load libraries**
 ```{r setup, include=FALSE}
 rm(list=ls()) # clean history 
 library(tidyverse)
 ```
 
-Get data of tree-visits (routine movement) and of the manipulation results (documented manually). 
+**Get data of tree-visits (routine movement) and of the manipulation results (documented manually).** 
 ```{r}
 all_stops<-read_csv("data/all_tree_visits.csv") # Table of all tree visits ("stops") 
-all_stops<-all_stops[all_stops$dummy!="cave",] # Select only stops on trees, without cave-roosts (dummy=cave)
+all_stops<-all_stops[all_stops$dummy!="cave",] # Filter out the cave-roost visits from the dataset to focus on tree visitation patterns (dummy=cave)ץ
 
 syc_stops_north<-read_csv("data/visits_to_f.sycamorus.csv") # Tree visits within 100 m buffer around the Northern target F.sycomorus tree (choosing stops within this buffer was done in ArcGIS)
 
@@ -23,13 +26,13 @@ syc_stops_south<-syc_stops_south[,cols]
 syc_stops<-rbind(syc_stops_south,syc_stops_north) # All tree stops to one of the two F. sycomorus trees during "routine" foraging movements. 
 ```
 
-Get the table with the field manipulation results.
-The table includes visits to the two F. sycomorus, that the bats exposed to the field manipulation made. Counting visits was made manually from observing the tracks 0-3 nights after the manipulation. 
+**Get the table with the field manipulation results.**
+**The table includes visits to the two *F. sycomorus*, that the bats exposed to the field manipulation made. Counting visits was made manually from observing the tracks 0-3 nights after the manipulation.** 
 ```{r}
 manip<-read_csv("data/Field_Manipulation_Table.csv")
 ```
 
-Comparisons to visits to F. sycomorus during routine movements, for periods of known phenology and not during the manipulation. Here, I create a dataset that merges all tag-nights that visited the F. sycomorus trees (syc_stops_unq) and the ones that did not (stops_no_syc). i.e. the rest of the tag-nights. 
+**Comparisons to visits to *F. sycomorus* during routine movements, for periods of known phenology and not during the manipulation. Here, I create a dataset that merges all tag-nights that visited the *F. sycomorus* trees (syc_stops_unq) and the ones that did not (stops_no_syc). i.e. the rest of the tag-nights.** 
 ```{r}
 
 syc_tag_nights<-unique(syc_stops$TAG_Night)
@@ -42,10 +45,13 @@ cols<-colnames(syc_stops_unq)
 stops_no_syc<-stops_no_syc[,cols]
 
 syc_dt<-rbind(syc_stops_unq, stops_no_syc)
+# Classify date_global as date format
+syc_dt$date_global<-as.Date(syc_dt$date_global, format = "%d/%m/%Y")
+str(syc_dt)
 table(syc_dt$syc)
 ```
 
-Tables for dates of different phenological stages of the F. sycomorus trees (based on field monitoring).
+**Tables for dates of different phenological stages of the F. sycomorus trees (based on field monitoring).**
 ```{r}
 phen_table <- read.table(text = "  Start        End  stage
 1	2019-11-11	2020-01-14	no_fruits
@@ -72,7 +78,8 @@ phen_end<-max(phen_table$End)
 ```
 
 
-# During the manipulation, some bats racted immediatly by arriving to the target tree, while some visited it up to 3 nights after. Hence, I asked whther there was a visit within 3 nights interval (and later compare the probability of visiting the target tree witihn 3-nights interval during non-manipulation periods)
+**During the manipulation, some bats reacted immediately by arriving to the target tree, while some visited it up to 3 nights after.**
+**Hence, I asked whether there was a visit within 3 nights interval (and later compare the probability of visiting the target tree within 3-nights interval during non-manipulation periods)**
 ```{r}
 syc_dt<-syc_dt[!is.na(syc_dt$date_global),]
 start_date<-min(syc_dt$date_global); end_date<-max(syc_dt$date_global)
@@ -110,12 +117,12 @@ syc_dt_all$TAG_triple<-paste0(syc_dt_all$TAG,"_", syc_dt_all$triple_date)
 syc_dt_all<-syc_dt_all %>% group_by(triple_date) %>% mutate("tdate"=min(as.Date(date_global)))
 
 # Remove manipulation dates:
-
 syc_dt_all<-syc_dt_all[syc_dt_all$fruits!="manipulation",]
-
+syc_dt_all<-na.omit(syc_dt_all)
 ```
 
-Summarize - what is the proportion of visits to F. sycomorus (tags visiting the tree relative to all tags).Remove the manipulation period.  
+**Summarize - what is the proportion of visits to *F. sycomorus* (tags visiting the tree relative to all tags).**
+**Remove the manipulation period.**  
 ```{r}
 syc_dt_sum_t<-syc_dt_all %>% group_by(fruits,TAG, tdate) %>% summarise("n_syc"=length(syc[syc=="yes"]))
 syc_dt_sum_t$syc_vis<-ifelse(syc_dt_sum_t$n_syc>0,1,0)
@@ -128,7 +135,7 @@ syc_sum_triple<-syc_sum_triple[!is.na(syc_sum_triple$fruits),] # removing dates 
 
 ```
 
-Chi-square test - comparing the probability to visit the target trees when there are no fruits to the probability during the manipulation (when, also, there were no fruits on the trees).
+**Chi-square test - comparing the probability to visit the target trees when there are no fruits to the probability during the manipulation (when, also, there were no fruits on the trees).**
 
 ```{r}
 
