@@ -141,20 +141,9 @@ get_psuedo_data<-function(night_files,path,type="obs"){
     psuedo<-psuedo[,-1]
     psuedo<-psuedo[is.na(psuedo$min_nights) | psuedo$min_nights=="yes",]
     psuedo$shared_tree<-ifelse(psuedo$MeetingTree=="None","no","yes")
-    name_nights<-gsub("psuedo_following_","",night_files[f])
-    
-    if (type=="obs"){
-      name_nights1<-gsub("Night_","",name_nights)
-      name_nights1<-gsub(".csv","",name_nights1)
-      name_nights1<-gsub("PAST_B","",name_nights1)
-      name_nights1<-gsub("Night","",name_nights1)
-      name_nights1<-gsub("_Ficus","",name_nights1)
-      
-    }else{
-      name_nights1<-as.numeric(gsub("([0-9]+).*$", "\\1", name_nights))
-    }
-   
-    psuedo$nights_examined<-as.double(name_nights1)
+    name_nights<-gsub("psuedo_following","",night_files[f])
+    name_nights<-gsub("Night.csv","",name_nights)
+    psuedo$nights_examined<-as.double(name_nights)
 
     psuedo$period<-NA
     psuedo$pair_ID<-seq(1,nrow(psuedo),1)
