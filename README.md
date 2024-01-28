@@ -9,13 +9,16 @@ The code for all analyses can be found under the main branch and described below
 There are two codes, one for each analysis described hereunder. Both are .Rmd files. 
 
 renv/
+
 Settings to restore the R packages and libraries to the versions used in this project.
 
 src/
+
 Two helper function that are called in for the second analysis (tree encounters) only.
 One for calculating distances between points, and the second includes three function that are used to derive the tree visitation patters of bats that met on trees, following the encounter. 
 
 data/
+
 The folder contains all source-data (bats tree visits, and individual measurements), and an additional folder for the outputs created while running the code of the tree-encounter analysis (tree_encounters). Description of the relevant data-tables per analysis are described below. The data folder contains two additional text files that describe the columns of the two main datasets of bats’ tree visit that were analyzed, i.e., all_tree_visits_main.csv & data_information_trees_main.csv. 
 
 **(1) Analysis of Information transfer in cave-roosts, based on field manipulations**
