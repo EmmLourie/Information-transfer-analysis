@@ -39,7 +39,7 @@ dt_stops<-dt_stops[dt_stops$dummy=="no",]
 
 ```
 
-**Get the individul bats' measurments (taken upon capture)**
+**Get the individual bats' measurements (taken upon capture)**
 ```{r}
 ind<-read_csv("data/ind_info.csv")
 ind$TAG<-as.character(ind$TAG)
@@ -47,7 +47,7 @@ ind<-ind[!duplicated(ind$TAG),]
 ```
 
 
-**Find pairs of bats that were tracked together simoultaniouslly, with help from the "data.table::foverlaps" function** 
+**Find pairs of bats that were tracked together simultaneously, with help from the "data.table::foverlaps" function** 
 ```{r}
 tag_dates<-dt_stops %>% dplyr::group_by(TAG) %>% dplyr::summarise("start_date"=min(date_global), "end_date"=max(date_global))
 
@@ -63,7 +63,7 @@ overlaps_tags<-overlaps_tags[overlaps_tags$TAGA!=overlaps_tags$TAGB,]
 overlaps_tags<-as.data.frame(overlaps_tags)
 ```
 
-**Find psuedo following events - summarize outcomes of tree-encounters in a table per night and save it externally. 
+**Find pseudo following events - summarize outcomes of tree-encounters in a table per night and save it externally. 
 Tables shall be saved in a folder named "tree_encounters"**
 
 Note: this is the heaviest part of the code, and should take ~ 15 mins to run. If you wish to skip it, the results are already uploaded to the source-code folder "data\tree_encounters"
@@ -80,8 +80,49 @@ print(paste0("Night ",nt," done after ", round(Sys.time()-t0,1), "mins"))
 
 ```
 
+** How often do bats meet on trees? **
+```{r}
+encounter_counts<-rbindlist(lapply(1:nrow(overlaps_tags),EncounterTrees, overlaps_tags, dt_stops))
+#encounter_counts<-as.data.frame(encounter_counts)
 
-**Get the individul bats' measurments (taken upon capture)**
+encounter_counts %>% summarise(
+    proportion_tree_encounters = sum(tree_met != "None") / n(),
+    nightly_encounter_rate = sum(tree_met != "None") / sum(total_nights))
+    
+
+
+encounter_counts_main<-encounter_counts %>%
+  filter(cave_origin %in% c("Har Gershom", "Zemer cave") | is.na(cave_origin))
+
+table(encounter_counts_main$cave_origin,useNA="always")
+
+# Summarize data for bats from the same cave
+same_cave_summary <- encounter_counts_main %>%
+  filter(same_cave == "yes") %>%
+  summarise(
+    proportion_tree_encounters = sum(tree_met != "None") / n(),
+  )
+
+# Summarize data for bats from different caves
+different_cave_summary <- encounter_counts_main %>%
+  filter(same_cave == "no") %>%
+  summarise(
+    proportion_tree_encounters = sum(tree_met != "None") / n(),
+  )
+
+# Display the results
+print(paste0("Encounter probability for the same colony members = ",round(same_cave_summary,2)))
+
+print(paste0("Encounter probability for different colonies= ",round(different_cave_summary,2)))
+
+
+
+```
+
+
+
+
+**Get the individual bats' measurements (taken upon capture)**
 ```{r}
 library(stringi)   
 
