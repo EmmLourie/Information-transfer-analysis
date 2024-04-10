@@ -11,18 +11,19 @@ chunk_output_type: console
 ```{r setup, include=FALSE}
 rm(list=ls()) # clean history 
 library(tidyverse)
+options(dplyr.summarise.inform = FALSE)
 ```
 
-**Get data of tree-visits (routine movement) and of the manipulation results (documented manually).** 
+**Get data of tree-visits (routine movement) to the focal trees** 
 ```{r}
-all_stops<-read_csv("data/all_tree_visits.csv") # Table of all tree visits ("stops") 
+all_stops<-read_csv("data/all_tree_visits_main.csv") # Table of all tree visits ("stops") 
 all_stops<-all_stops[all_stops$dummy!="cave",] # Filter out the cave-roost visits from the dataset to focus on tree visitation patterns (dummy=cave)ץ
 
 syc_stops_north<-read_csv("data/visits_to_f.sycamorus.csv") # Tree visits within 100 m buffer around the Northern target F.sycomorus tree (choosing stops within this buffer was done in ArcGIS)
 
 syc_stops_south<-all_stops[all_stops$cluster_ID=="Ficus sycomorus_2",]# Because the southern tree is in close proximity with other relevant fruit trees, the delineation of a visit to it is based on a harder criterion, which is based on a previous analysis of the track segmentation and then binning of the relative number of points (X, Y coordinates that were classified as a 1-tree stop) that are closest to this tree more than other close-by trees. 
-cols<-colnames(syc_stops_north)
-syc_stops_south<-syc_stops_south[,cols]
+cols<-colnames(syc_stops_south)
+syc_stops_north<-syc_stops_north[,cols]
 syc_stops<-rbind(syc_stops_south,syc_stops_north) # All tree stops to one of the two F. sycomorus trees during "routine" foraging movements. 
 ```
 
@@ -51,7 +52,7 @@ str(syc_dt)
 table(syc_dt$syc)
 ```
 
-**Tables for dates of different phenological stages of the F. sycomorus trees (based on field monitoring).**
+**Tables for dates of different phenological stages of the *F. sycomorus* trees (based on field monitoring).**
 ```{r}
 phen_table <- read.table(text = "  Start        End  stage
 1	2019-11-11	2020-01-14	no_fruits
@@ -78,18 +79,19 @@ phen_end<-max(phen_table$End)
 ```
 
 
-**During the manipulation, some bats reacted immediately by arriving to the target tree, while some visited it up to 3 nights after.**
-**Hence, I asked whether there was a visit within 3 nights interval (and later compare the probability of visiting the target tree within 3-nights interval during non-manipulation periods)**
+**During the manipulation, most bats (11/14) arrived 1-3 nights after the manipulation to the target tree, while others up to 6 nights after.**
+**Hence, I asked whether there was a visit within 3 nights interval during non-manipulation periods, to estimate the probability of visiting the target tree during routine movements and compare it to the manipulation results after**
 ```{r}
 syc_dt<-syc_dt[!is.na(syc_dt$date_global),]
 start_date<-min(syc_dt$date_global); end_date<-max(syc_dt$date_global)
 
 syc_dt_all<-syc_dt
+test_interval<-3
 man_start<-na.omit(phen_table$Start[phen_table$stage=="manipulation"])
 man_end<-na.omit(phen_table$End[phen_table$stage=="manipulation"])
-before_man<-seq(man_start-1,start_date, -3)
-after_man<-seq(man_end+1, end_date,3)
-man<-seq(man_start,man_end,3)
+before_man<-seq(man_start-1,start_date, (-1)*test_interval)
+after_man<-seq(man_end+1, end_date,test_interval)
+man<-seq(man_start,man_end,test_interval)
 triple_dates<-c(before_man,man,after_man)
 triple_inx<-seq(1, length(triple_dates),1)
 triple_df<-data.frame("start_date"=triple_dates, "triple_inx"=triple_inx)
@@ -121,13 +123,14 @@ syc_dt_all<-syc_dt_all[syc_dt_all$fruits!="manipulation",]
 syc_dt_all<-na.omit(syc_dt_all)
 ```
 
-**Summarize - what is the proportion of visits to *F. sycomorus* (tags visiting the tree relative to all tags).**
-**Remove the manipulation period.**  
+**Summarize - counting the number of visits (unique to each tag, not accounting for multiple visits of the same bat during the three-nights interval) to *F. sycomorus* and the overall number of tagged bats during the same three-nights intervals**
+(Removing the manipulation period)  
 ```{r}
 syc_dt_sum_t<-syc_dt_all %>% group_by(fruits,TAG, tdate) %>% summarise("n_syc"=length(syc[syc=="yes"]))
-syc_dt_sum_t$syc_vis<-ifelse(syc_dt_sum_t$n_syc>0,1,0)
-table(syc_dt_sum_t$fruits)
+syc_dt_sum_t$syc_vis<-ifelse(syc_dt_sum_t$n_syc>0,1,0) # counting each bats visit during the 3-night interval as either visited (=1) or not. 
+table(syc_dt_sum_t$fruits) 
 
+# This summarizes: the number of three-night intervals where any bat visited the focal trees (n_vis_syc), out of the total number of bats tracked during the same 3-nights intervals. 
 syc_sum_triple<-syc_dt_sum_t %>% group_by(fruits,tdate) %>% summarise("n_syc_vis"=sum(syc_vis), "n_tags"=length(unique(TAG)))
 syc_sum_triple$syc_prop<-syc_sum_triple$n_syc_vis/syc_sum_triple$n_tags
 syc_sum_triple<-syc_sum_triple[!is.na(syc_sum_triple$fruits),] # removing dates without phenological monitoring
@@ -139,7 +142,8 @@ syc_sum_triple<-syc_sum_triple[!is.na(syc_sum_triple$fruits),] # removing dates 
 
 ```{r}
 
-syc_sum_test<-syc_sum_triple %>% group_by(fruits) %>% summarise("n_vis" = sum(n_syc_vis),"n_tags"=sum(n_tags))
+syc_sum_test<-syc_sum_triple %>% group_by(fruits) %>% summarise("n_vis" = sum(n_syc_vis),"n_tags"=sum(n_tags)) # "n_vis" = non-unique number of tags visiting the focal tree in 3-nights intervals. "n_tags" the total number of bats tracked during the same periods (here too, not the unique number of tags)
+
 # Use only times when there were no fruits:
 syc_sum_test_nof<-syc_sum_test[syc_sum_test$fruits=="no_fruits",]
 # Add manipulation results
