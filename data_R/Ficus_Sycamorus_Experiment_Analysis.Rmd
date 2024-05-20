@@ -1,0 +1,393 @@
+---
+title: "Ficus Sycamorus Experiment"
+author: "Emmanuel Lourie" 
+output: html_document
+date: "2023-09-19"
+keep_md: true
+chunk_output_type: console
+editor_options: 
+  chunk_output_type: console
+---
+
+**Clean history and load libraries**
+```{r setup, include=FALSE}
+rm(list=ls()) # clean history 
+library(tidyverse)
+options(dplyr.summarise.inform = FALSE)
+```
+
+**Get data of tree-visits to the focal trees (all periods)** 
+```{r}
+all_stops<-read_csv("data_R/all_tree_visits_main.csv") # Table of all tree visits ("stops") 
+all_stops<-all_stops[all_stops$dummy!="cave",] # Filter out the cave-roost visits from the dataset to focus on tree visitation patterns (dummy=cave)ץ
+
+syc_stops_north<-read_csv("data_R/bats_visits_north_ficus_30_m_Radius.csv") # Tree visits within 30 m buffer around the Northern target F.sycomorus tree 
+
+syc_stops_south<-all_stops[all_stops$cluster_ID=="Ficus sycomorus_2",]# Because the southern tree is in close proximity with other relevant fruit trees, the delineation of a visit to it is based on a harder criterion, which is based on a previous analysis of the track segmentation and then binning of the relative number of points (X, Y coordinates that were classified as a 1-tree stop) that are closest to this tree more than other close-by trees. 
+
+cols<-colnames(syc_stops_south)
+syc_stops_north<-syc_stops_north[,cols]
+syc_stops<-rbind(syc_stops_south,syc_stops_north) # All tree stops to one of the two F. sycomorus trees during "routine" foraging movements. 
+```
+
+**Get the table with the field manipulation results.**
+**The table includes visits to the two *F. sycomorus*, that the bats exposed to the field manipulation made. Counting visits was made manually from observing the tracks 0-3 nights after the manipulation.** 
+```{r}
+manip<-read_csv("data_R/Field_Manipulation_Table.csv")
+manip_syc_tags<-read_csv("data_R/Tags_manipulated_and_visiting.csv")
+tag_smeared<-c("6485", "6637","6654","6639")
+manip_syc_tags$manip<-ifelse(manip_syc_tags$tags%in% tag_smeared, "Manipulated","Naive")
+```
+
+**Comparisons to visits to *F. sycomorus* during routine movements, for periods of no fruits and not during the manipulation. Here, I create a dataset that merges all tag-nights that visited the *F. sycomorus* trees (syc_stops_unq) and the ones that did not (stops_no_syc). *i.e.* the rest of the tag-nights.** 
+```{r}
+
+syc_tag_nights<-unique(syc_stops$TAG_Night)
+stops_no_syc<-all_stops[!all_stops$TAG_Night %in% syc_tag_nights,]
+stops_no_syc<-stops_no_syc[!duplicated(stops_no_syc$TAG_Night),]
+stops_no_syc$syc<-rep("no",nrow(stops_no_syc))
+syc_stops_unq<-syc_stops[!duplicated(syc_stops$TAG_Night),]
+syc_stops_unq$syc<-rep("yes",nrow(syc_stops_unq))
+cols<-colnames(syc_stops_unq)
+stops_no_syc<-stops_no_syc[,cols]
+
+syc_dt<-rbind(syc_stops_unq, stops_no_syc)
+# Classify date_global as date format
+syc_dt$date_global<-as.Date(syc_dt$date_global, format = "%d/%m/%Y")
+str(syc_dt)
+table(syc_dt$syc)
+# the date is "global" to give each night a single date from sunset to sunrise. 
+```
+
+**Tables for dates of different phenological stages of the *F. sycomorus* trees (based on field monitoring).**
+```{r}
+phen_table <- read.table(text = "  Start        End  stage
+1	2019-11-11	2020-01-14	no_fruits
+2	2020-01-15	2020-06-01	NA
+3	2020-06-02	2020-06-12	fruits
+4	2020-06-13	2020-06-22	no_fruits
+5	2020-06-23	2020-06-25	manipulation
+6	2020-07-01	2020-11-01	fruits
+7	2020-11-02	2020-11-30	NA
+8	2020-12-01	2021-03-30	no_fruits
+9	2019-12-15	2020-02-15	no_fruits
+10	2018-12-15	2019-02-15	no_fruits", # Add winter
+header = TRUE,
+stringsAsFactors = FALSE)
+
+phen_table$Start<-as.Date(phen_table$Start, format="%Y-%m-%d")
+phen_table$End<-as.Date(phen_table$End, format="%Y-%m-%d")
+
+phen_table$n_nights<-phen_table$End-phen_table$Start
+
+phen_start<-min(phen_table$Start)
+phen_end<-max(phen_table$End)
+
+
+```
+
+
+###Comparing the manipulation results to the routine movements, by comparing (1) the probabilities of bats visiting the focal trees each night immediately after  the manipulation, against (2) the probability of bats visiting the target tree during non-fruit periods.
+
+1. Get the probability of bats tracked during the manipulation to visit the focal trees 1-6 nights after the manipulation:
+
+```{r}
+
+syc_man<-data.frame("fruits"="manipulation" ,"sum_bats_vis"=sum(manip$n_visited_either_tree,na.rm=T)  ,"sum_bats_all"=sum(manip$n_total,na.rm=T))
+syc_man$sum_bats_not<-syc_man$sum_bats_all-syc_man$sum_bats_vis
+
+all_manip_tags<-syc_man$sum_bats_all
+
+man_tags_nights<-manip_syc_tags %>% dplyr::group_by(Nights_after_manipulation, manip) %>% summarise("sum_bats_night"=sum(length(unique(tags))))
+fifth_night<-data.frame("Nights_after_manipulation"=c(5,5),"manip"= "naive","sum_bats_night"=0)
+
+man_tags_nights<-rbind(man_tags_nights,fifth_night)
+man_tags_nights<-man_tags_nights[order(man_tags_nights$Nights_after_manipulation),]
+# For all bats (naive and not)
+#man_tags_nights$accum_bats_night=cumsum(man_tags_nights$sum_bats_night)
+
+man_tags_nights<-man_tags_nights[man_tags_nights$manip=="Naive",]
+man_tags_nights$accum_bats_night=cumsum(man_tags_nights$sum_bats_night)
+
+```
+
+**Add fruit phenology infomration to the dataset of bats visitng the trees**
+```{r}
+syc_dt<-syc_dt[!is.na(syc_dt$date_global),]
+start_date<-min(syc_dt$date_global); end_date<-max(syc_dt$date_global)
+
+syc_dt_all<-syc_dt
+
+# add penology
+syc_dt_all$fruits<-NA
+for (r in 1:nrow(phen_table)){
+rows<-which(syc_dt_all$date_global>=phen_table$Start[r] & syc_dt_all$date_global<=phen_table$End[r])
+syc_dt_all$fruits[rows]<-phen_table$stage[r]
+}
+```
+
+
+Comparing the probability to visit the focal trees from routine movements, which are calculated by sampling time-intervals, from 1-6, and calculating the proportion of bats visiting the trees based on the summation of the number of bats visiting and not-visiting in multiple time intervals that, together, result in at least 70 bats tracked, the number corresponding directly to the sample size of the manipulation. 
+
+```{r}
+non_fruit_p <- na.omit(phen_table[phen_table$stage == "no_fruits", ])
+syc_dt_nof <- syc_dt %>% rowwise() %>%
+  filter(any(date_global >= non_fruit_p$Start & date_global <= non_fruit_p$End))
+
+test_intervals <- c(1:6)
+
+# Initialize a data frame to store the count of intervals and aggregated intervals
+interval_summary <- data.frame(test_interval = integer(),
+                               n_intervals = integer(),
+                               n_aggregated_intervals = integer(),
+                               total_bats = integer())
+
+#ii<-6
+total_bats_ts<-70
+for (ii in test_intervals) {
+    tag_tr <- 2  # minimum number of tags to be tracked in the time-interval
+    test_interval <- ii
+
+    all_possible_intervals <- lapply(1:nrow(non_fruit_p), function(i) {
+        seq(non_fruit_p$Start[i], non_fruit_p$End[i] - test_interval, by = "day")
+    }) %>% unlist() %>% as.Date(origin = "1970-01-01")
+
+    possible_starts <- Filter(function(start_date) {
+        end_date <- start_date + test_interval - 1
+        interval_data <- syc_dt_nof %>%
+          filter(date_global >= start_date & date_global <= end_date)
+        
+        total_bats <- length(unique(interval_data$TAG))
+        all(seq(start_date, end_date, by = "day") %in% syc_dt_nof$date_global) && total_bats >= tag_tr
+    }, all_possible_intervals)
+
+    proportions <- vector()  # Initialize empty vector for storing proportions
+    remaining_starts <- possible_starts  # Initialize with all possible starts
+    n_aggregated_intervals <- 0  # Initialize counter for aggregated intervals
+
+    while (length(remaining_starts) > 0) {
+    total_bats = 0
+    n_intervals_this_aggregation = 0
+    n_visited = 0  # Initialize before the aggregation loop
+    n_not_visited = 0  # Initialize before the aggregation loop
+
+        while (total_bats < total_bats_ts && length(remaining_starts) > 0) {
+            selected_index <- sample(seq_along(remaining_starts), 1)
+            random_date <- remaining_starts[selected_index]
+            remaining_starts <- remaining_starts[-selected_index]
+
+            end_date <- random_date + test_interval - 1  
+
+            interval_data <- syc_dt_nof %>%
+                filter(date_global >= random_date & date_global <= end_date)
+
+            n_visited_interval <- length(unique(interval_data$TAG[interval_data$syc == "yes"]))
+        n_not_visited_interval <- length(unique(interval_data$TAG[interval_data$syc == "no"]))
+
+        n_visited = n_visited + n_visited_interval
+        n_not_visited = n_not_visited + n_not_visited_interval
+        total_bats = total_bats + n_visited_interval + n_not_visited_interval
+        n_intervals_this_aggregation <- n_intervals_this_aggregation + 1
+        }
+
+        if (total_bats >= total_bats_ts) {
+        proportions = c(proportions, n_visited / total_bats)
+        n_aggregated_intervals <- n_aggregated_intervals + n_intervals_this_aggregation
+            
+            # Record the results for this test interval
+    interval_summary <- rbind(interval_summary, data.frame(
+        test_interval = test_interval,
+        n_intervals = length(possible_starts),
+        n_aggregated_intervals = n_aggregated_intervals,
+        total_bats = total_bats
+    ))
+        }
+    }
+
+    
+ proportions <- na.omit(proportions)
+hist( proportions, breaks=25)
+ file_name <- paste0("proportions_no_replacement/", "proportion", test_interval, "_Nights_at_least_",total_bats_ts,".rds")
+    saveRDS(proportions, file = file_name)
+    
+    interval_summary
+    saveRDS(interval_summary, file = paste0("proportions_no_replacement/interval_summary_",ii,"_Nights.rds"))
+
+}
+```
+
+**Plot results of permutations and calculate p-values into a summary table ("results")**
+```{r}
+# With all bats, including smeared ones
+#man_tags_nights$observed_proportion <- man_tags_nights$accum_bats_night /71
+
+# For non-manipulated bats only:
+man_tags_nights$observed_proportion <- man_tags_nights$accum_bats_night /56
+
+results <- data.frame()  # Initialize an empty data frame to store results
+
+for (i in 1:6) {
+    proportions_file <- sprintf("data_R/proportions_no_replacement/proportion%d_Nights_at_least_70.rds", i)
+    proportions <- readRDS(proportions_file)
+    
+    manipulation_proportion<-man_tags_nights$observed_proportion[man_tags_nights$Nights_after_manipulation==i]
+    # Load the corresponding interval summary for this test interval
+    summary_file <- sprintf("data_R/proportions_no_replacement/interval_summary_%d_Nights.rds", i)
+    interval_summary <- readRDS(summary_file)
+    
+    # Calculate the mean number of bats per interval and total intervals taken from the summary
+    mean_bats_per_interval <- mean(interval_summary$total_bats[interval_summary$test_interval==i])
+    n_intervals_taken <- max(interval_summary$n_aggregated_intervals[interval_summary$test_interval==i])
+
+    # Plotting
+    ggplot() +
+      geom_histogram(aes(x = proportions), binwidth = 0.005, fill = "grey", alpha = 0.7) +
+      geom_vline(aes(xintercept = manipulation_proportion), color = "red", linetype = "dashed", size = 1.5) +
+      theme_classic() + theme(text = element_text(size=20)) +
+      labs(x = "Proportions of Bats Visiting Focal Trees", y = "Frequency")
+
+
+   
+     # Calculating the p-value for a one-tailed test
+    p_value <- sum(proportions >= manipulation_proportion) / length(proportions)
+    #print(p_value)
+    
+    # Append the results to the results data frame
+    results <- rbind(results, data.frame(
+        Test_Interval = i,
+        Number_of_Intervals_Taken = n_intervals_taken,
+        Mean_Number_of_Bats_per_Interval = mean_bats_per_interval,
+        Manipulation_Proportion = manipulation_proportion,
+        Mean_Permutations_Proportion = mean(proportions),
+        P_Value = p_value
+    ))
+}
+
+# Save the results to file
+#saveRDS(results, file = "proportions_no_replacement/results_summary.rds")
+print(results)
+```
+
+Add a comparison to the proportion of visits to the focal trees of all bats **that were exposed to the manipulation** 2 weeks before the manipulations.
+```{r}
+manipulation_dates<-na.omit(unique(manip_syc_tags$date_manipulation))
+manipulation_dates <- as.Date(manipulation_dates, format = "%d/%m/%Y")
+
+
+filtered_syc_dt <- data.frame()
+
+# Loop through each manipulation date
+for (manip_date in manipulation_dates) {
+    # Calculate the start date for two weeks prior
+    start_date <- manip_date - 14  # 14 days for two weeks
+
+    # Filter syc_dt for dates within this range and combine with the previous results
+    filtered_syc_dt <- rbind(filtered_syc_dt, 
+                             syc_dt[syc_dt$date_global >= start_date & syc_dt$date_global < manip_date, ])
+}
+
+prop_vis_before_manip<-round(length(filtered_syc_dt$TAG[filtered_syc_dt$syc=="yes"])/length(filtered_syc_dt$TAG),3)
+```
+
+Plot histograms vs. observed (manipulation)
+```{r}
+library(patchwork)
+
+plot_list <- list()  # Initialize an empty list for plots
+
+for (i in 1:6) {
+    proportions_file <- sprintf("data_R/proportions_no_replacement/proportion%d_Nights_at_least_70.rds", i)
+    proportions <- readRDS(proportions_file)
+    
+    manipulation_proportion <- man_tags_nights$observed_proportion[man_tags_nights$Nights_after_manipulation == i]
+
+    # Plotting
+    p <- ggplot() +
+      geom_histogram(aes(x = proportions), binwidth = 0.01, fill = "grey", alpha = 0.7) +
+      geom_vline(aes(xintercept = manipulation_proportion), color = "red", linetype = "dashed", size = 1.5) +
+      geom_vline(aes(xintercept = prop_vis_before_manip), color = "black", linetype = "dashed", size = 1.5)+
+      theme_classic() +
+      theme(text = element_text(size = 14)) +
+      labs(x = "Proportions of Bats Visiting Focal Trees", y = "Frequency") +
+      ggtitle(sprintf("Night %d", i))+ylim(0,10)+xlab("")+ylab("")+xlim(0,0.25)
+
+    plot_list[[i]] <- ggplotGrob(p)
+}
+
+# Combine plots into one layout
+# Combine plots into one layout
+combined_plot <- wrap_plots(plot_list) + 
+                 plot_annotation(
+                   caption = "Proportions of Bats Visiting Focal Trees",
+                   theme = theme(
+                     plot.caption = element_text(hjust = 0.5, size = 14),
+                     plot.title.position = "plot"
+                   )
+                 ) 
+print(combined_plot)
+
+```
+
+
+# Plot means and CI of permutation results against manipulation
+```{r}
+# Initialize a list to store the proportions data
+proportions_list <- list()
+
+# Read the proportions data for each night
+for (i in 1:6) {
+    file_name <- sprintf("data_R/proportions_no_replacement/proportion%d_Nights_at_least_70.rds", i)
+    proportions_list[[i]] <- readRDS(file_name)
+}
+
+# Prepare the permutation results data frame with mean and standard deviation
+permutation_results <- data.frame(
+  Night = 1:6,
+  Mean = sapply(proportions_list, mean),
+  SD = sapply(proportions_list, sd)
+)
+# For all bats
+#man_tags_nights$observed_proportion <- man_tags_nights$accum_bats_night /71
+
+# For manipulated bats only:
+man_tags_nights$observed_proportion <- man_tags_nights$accum_bats_night /56
+
+
+# Plotting
+ggplot() +
+  geom_errorbar(data=permutation_results, aes(x=Night, ymin=Mean - SD, ymax=Mean + SD), width=.1) +
+  geom_point(data=permutation_results, aes(x=Night, y=Mean), size=4, color="#333340") + geom_line() +
+  geom_point(data=man_tags_nights, aes(x=Nights_after_manipulation, y=observed_proportion), size=4, color="#ad2895") + geom_line() +
+  labs(x="Number of Nights", y= expression("Proportion Visiting "~ italic("F. sycomorus"))) +
+  theme_classic() + theme(text=element_text(size=18))+ ylim(0,0.3) +
+  scale_x_continuous(breaks=1:6)
+
+
+## With Confidence intervals
+permutation_results_CI <- tibble(
+  Night = 1:6,
+  Data = proportions_list
+)
+
+permutation_results_CI <- permutation_results_CI %>%
+  rowwise() %>%
+  mutate(Mean_CI = list(phenesse::mean_ci(Data, bootstraps = 1e+05, conf = 0.95, type = "perc"))) %>%
+  unnest(Mean_CI)
+
+# Plotting with confidence intervals
+ggplot() +
+  geom_errorbar(data=permutation_results_CI, aes(x=Night, ymin=low_ci, ymax=high_ci, color="Routine\nmovement"), width=.1) +
+  geom_line(data=permutation_results_CI, aes(x=Night, y=estimate, color="Routine\nmovement"), size=1) +
+  geom_point(data=permutation_results_CI, aes(x=Night, y=estimate, color="Routine\nmovement"), size=3) +
+  geom_line(data=man_tags_nights, aes(x=Nights_after_manipulation, y=observed_proportion, color="Manipulation"), size=1) +
+  geom_point(data=man_tags_nights, aes(x=Nights_after_manipulation, y=observed_proportion, color="Manipulation"), size=3) +
+  labs(x="Night", y=expression("Proportion Visiting "~ italic("F. sycomorus"))) +
+  scale_color_manual(values=c("Routine\nmovement" = "blue", "Manipulation" = "red")) +
+  guides(color=guide_legend(title=NULL)) +  # Remove legend title
+  theme_classic() +
+  theme(text=element_text(size=18)) +
+  ylim(0, 0.3)+
+    geom_hline(yintercept=prop_vis_before_manip, linetype="dashed", color="grey", size=1)  
+
+
+```
